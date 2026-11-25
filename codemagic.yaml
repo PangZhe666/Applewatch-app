@@ -1,0 +1,69 @@
+# 饭耳 · Codemagic 构建配置
+# 用途：在云端 macOS 上生成 Xcode 工程并构建 iPhone 端与 Watch 端，验证两端界面骨架可编译
+workflows:
+  faner-ios-watch-skeleton:
+    name: 饭耳 · iPhone + Watch 界面骨架构建
+    max_build_duration: 60
+    environment:
+      xcode: latest
+      vars:
+        XCODE_PROJECT: FanEr.xcodeproj
+        XCODE_SCHEME_IOS: FanEr
+        XCODE_SCHEME_WATCH: FanErWatch
+    scripts:
+      - name: 打印构建环境
+        script: |
+          set -e
+          xcodebuild -version
+          sw_vers
+
+      - name: 安装 XcodeGen 并生成 Xcode 工程
+        script: |
+          set -e
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
+          fi
+          xcodegen --version
+          xcodegen generate --spec project.yml
+          xcodebuild -list -project "$XCODE_PROJECT"
+
+      - name: 构建 iPhone 端（含内嵌 Watch App）
+        script: |
+          set -e
+          xcodebuild build \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME_IOS" \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+      - name: 构建 Watch 端
+        script: |
+          set -e
+          xcodebuild build \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME_WATCH" \
+            -configuration Debug \
+            -destination 'generic/platform=watchOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+      - name: 打包未签名 IPA
+        script: |
+          set -e
+          APP_PATH="build/Build/Products/Debug-iphoneos/FanEr.app"
+          if [ -d "$APP_PATH" ]; then
+            rm -rf build/ipa
+            mkdir -p build/ipa/Payload
+            cp -R "$APP_PATH" build/ipa/Payload/
+            (cd build/ipa && zip -qry "../FanEr-unsigned.ipa" Payload)
+            echo "已生成未签名 IPA：build/FanEr-unsigned.ipa"
+          else
+            echo "未找到 iPhone 端产物，跳过 IPA 打包"
+          fi
+    artifacts:
+      - build/Build/Products/Debug-iphoneos/*.app
+      - build/Build/Products/Debug-watchos/*.app
+      - build/FanEr-unsigned.ipa
+      - build/Build/Products/Debug-iphoneos/*.app.dSYM

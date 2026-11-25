@@ -1,0 +1,11 @@
+# Xcode / 生成物
+build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+Info/*.plist
+
+# macOS
+.DS_Store
